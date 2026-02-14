@@ -461,4 +461,5 @@ def scrape():
         logging.info("本次无新内容，不发送邮件")
 
 if __name__ == "__main__":
+
     scrape()
