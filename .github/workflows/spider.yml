@@ -37,6 +37,8 @@ jobs:
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # 设置 remote 使用 GITHUB_TOKEN 进行认证
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
           git add pending.txt visited.txt data/
           git diff --quiet && git diff --staged --quiet || git commit -m "自动更新爬虫进度 [skip ci]"
           git push
