@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-终极智能爬虫 - 个人百度蜘蛛
+终极智能爬虫 - 个人百度蜘蛛（优化版）
 功能：
 - 从种子网址开始，自动提取链接并扩散
 - 遵守 robots.txt
@@ -22,20 +22,33 @@ from urllib.parse import urljoin, urlparse
 from urllib.robotparser import RobotFileParser
 import re
 from datetime import datetime
-import trafilatura
-from readability import Document
-import extruct
-import json
+from typing import Set, List, Dict, Any, Optional
+
+# 第三方库导入（带错误提示）
+try:
+    import trafilatura
+except ImportError:
+    raise ImportError("请安装 trafilatura: pip install trafilatura")
+
+try:
+    from readability import Document
+except ImportError:
+    raise ImportError("请安装 readability-lxml: pip install readability-lxml")
+
+try:
+    import extruct
+except ImportError:
+    raise ImportError("请安装 extruct: pip install extruct")
 
 # ==================== 配置区域 ====================
 # 每次运行最多抓取多少页（建议 10-20，避免超时和封 IP）
-MAX_PAGES_PER_RUN = 15
+MAX_PAGES_PER_RUN: int = 15
 # 请求延迟（秒），降低服务器压力
-REQUEST_DELAY = 2
+REQUEST_DELAY: int = 2
 # 用户代理，表明身份
-USER_AGENT = "Mozilla/5.0 (compatible; MyPersonalSpider/1.0; +https://github.com/Jay-R-J/my-spider)"
+USER_AGENT: str = "Mozilla/5.0 (compatible; MyPersonalSpider/1.0; +https://github.com/Jay-R-J/my-spider)"
 # 允许抓取的优质内容域名组合
-ALLOWED_DOMAINS = [
+ALLOWED_DOMAINS: List[str] = [
     "baike.baidu.com",      # 百度百科 - 结构化知识
     "zhidao.baidu.com",     # 百度知道 - 问答
     "tieba.baidu.com",      # 百度贴吧 - 论坛讨论
@@ -45,32 +58,32 @@ ALLOWED_DOMAINS = [
     "juejin.cn",            # 掘金 - 技术文章
 ]
 # 种子文件路径
-SEEDS_FILE = "seeds.txt"
+SEEDS_FILE: str = "seeds.txt"
 # 待抓取队列文件
-PENDING_FILE = "pending.txt"
+PENDING_FILE: str = "pending.txt"
 # 已访问记录文件
-VISITED_FILE = "visited.txt"
+VISITED_FILE: str = "visited.txt"
 # 数据保存目录
-DATA_DIR = "data"
+DATA_DIR: str = "data"
 # 日志级别
-LOG_LEVEL = logging.INFO
+LOG_LEVEL: int = logging.INFO
 # 邮件正文中每个页面的正文预览最大长度（字符数）
-PREVIEW_MAX_LENGTH = 2000
+PREVIEW_MAX_LENGTH: int = 2000
 # 结构化数据字段最大展示行数（暂未使用，但可扩展）
-MAX_STRUCTURED_ITEMS = 5
+MAX_STRUCTURED_ITEMS: int = 5
 # ==================== 邮件配置（从环境变量读取）====================
-MAIL_USER = os.environ.get("MAIL_USER")
-MAIL_PASS = os.environ.get("MAIL_PASS")
-MAIL_TO = os.environ.get("MAIL_TO")
+MAIL_USER: Optional[str] = os.environ.get("MAIL_USER")
+MAIL_PASS: Optional[str] = os.environ.get("MAIL_PASS")
+MAIL_TO: Optional[str] = os.environ.get("MAIL_TO")
 # ===============================================================
 
 # 配置日志
 logging.basicConfig(level=LOG_LEVEL, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # 全局 robot 解析器缓存
-robot_parsers = {}
+robot_parsers: Dict[str, Optional[RobotFileParser]] = {}
 
-def get_robots_parser(domain):
+def get_robots_parser(domain: str) -> Optional[RobotFileParser]:
     """获取 domain 的 robots 解析器（带缓存）"""
     if domain in robot_parsers:
         return robot_parsers[domain]
@@ -82,9 +95,10 @@ def get_robots_parser(domain):
     except Exception as e:
         logging.warning(f"读取 {domain}/robots.txt 失败: {e}")
         parser = None
-    return parser
+        robot_parsers[domain] = None
+    return robot_parsers[domain]
 
-def can_fetch(url, user_agent=USER_AGENT):
+def can_fetch(url: str, user_agent: str = USER_AGENT) -> bool:
     """检查 robots.txt 是否允许抓取该 URL"""
     domain = urlparse(url).netloc
     parser = get_robots_parser(domain)
@@ -93,33 +107,33 @@ def can_fetch(url, user_agent=USER_AGENT):
         return True
     return parser.can_fetch(user_agent, url)
 
-def load_set(filename):
+def load_set(filename: str) -> Set[str]:
     """从文件加载集合，每行一个元素"""
     if not os.path.exists(filename):
         return set()
     with open(filename, 'r', encoding='utf-8') as f:
-        return set(line.strip() for line in f if line.strip())
+        return {line.strip() for line in f if line.strip()}
 
-def save_set(filename, data_set):
+def save_set(filename: str, data_set: Set[str]) -> None:
     """保存集合到文件"""
     with open(filename, 'w', encoding='utf-8') as f:
         for item in sorted(data_set):
             f.write(item + '\n')
 
-def load_list(filename):
+def load_list(filename: str) -> List[str]:
     """从文件加载列表（保留顺序）"""
     if not os.path.exists(filename):
         return []
     with open(filename, 'r', encoding='utf-8') as f:
         return [line.strip() for line in f if line.strip()]
 
-def save_list(filename, data_list):
+def save_list(filename: str, data_list: List[str]) -> None:
     """保存列表到文件"""
     with open(filename, 'w', encoding='utf-8') as f:
         for item in data_list:
             f.write(item + '\n')
 
-def is_allowed_domain(url):
+def is_allowed_domain(url: str) -> bool:
     """检查域名是否在 ALLOWED_DOMAINS 中"""
     if not ALLOWED_DOMAINS:
         return True
@@ -129,13 +143,13 @@ def is_allowed_domain(url):
             return True
     return False
 
-def normalize_url(url):
+def normalize_url(url: str) -> str:
     """标准化 URL：去除 fragment，保留 scheme+netloc+path"""
     parsed = urlparse(url)
     # 只保留 scheme, netloc, path
     return f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
 
-def extract_links(soup, base_url):
+def extract_links(soup: BeautifulSoup, base_url: str) -> List[str]:
     """从 BeautifulSoup 对象中提取所有链接，返回标准化后的 URL 列表"""
     links = []
     for a in soup.find_all('a', href=True):
@@ -148,14 +162,14 @@ def extract_links(soup, base_url):
             links.append(normalized)
     return links
 
-def extract_structured_data(html, url):
+def extract_structured_data(html: str, url: str) -> Dict[str, Any]:
     """
     使用 extruct 提取 JSON-LD、微数据、RDFa 等结构化数据。
     返回一个字典，包含提取到的关键信息（如名称、价格、评分等）。
     """
     try:
         data = extruct.extract(html, url, uniform=True)
-        summary = {}
+        summary: Dict[str, Any] = {}
         
         # 提取 JSON-LD
         if data.get('json-ld'):
@@ -166,6 +180,8 @@ def extract_structured_data(html, url):
                         summary['name'] = item['name']
                     if 'description' in item and 'description' not in summary:
                         summary['description'] = item['description']
+                    
+                    # 处理 offers（可以是字典或列表）
                     if 'offers' in item:
                         offers = item['offers']
                         if isinstance(offers, dict):
@@ -176,7 +192,6 @@ def extract_structured_data(html, url):
                             if currency:
                                 summary['currency'] = currency
                         elif isinstance(offers, list) and offers:
-                            # 取第一个 offer
                             first_offer = offers[0]
                             if isinstance(first_offer, dict):
                                 price = first_offer.get('price')
@@ -185,6 +200,7 @@ def extract_structured_data(html, url):
                                 currency = first_offer.get('priceCurrency')
                                 if currency:
                                     summary['currency'] = currency
+                    
                     if 'aggregateRating' in item:
                         rating = item['aggregateRating'].get('ratingValue')
                         if rating:
@@ -206,7 +222,7 @@ def extract_structured_data(html, url):
         logging.warning(f"结构化数据提取失败: {e}")
         return {}
 
-def extract_opengraph(soup):
+def extract_opengraph(soup: BeautifulSoup) -> Dict[str, str]:
     """提取 Open Graph 元数据"""
     og = {}
     for meta in soup.find_all('meta', property=re.compile(r'^og:')):
@@ -217,7 +233,7 @@ def extract_opengraph(soup):
             og[key] = content
     return og
 
-def extract_page_data(html, url):
+def extract_page_data(html: str, url: str) -> Dict[str, Any]:
     """
     综合提取页面的所有重要数据：
     - 使用 trafilatura 提取主要文本
@@ -226,7 +242,7 @@ def extract_page_data(html, url):
     - 提取结构化数据
     - 提取 meta description
     """
-    data = {
+    data: Dict[str, Any] = {
         'url': url,
         'title': '',
         'meta_description': '',
@@ -277,7 +293,7 @@ def extract_page_data(html, url):
     
     return data
 
-def send_email(subject, body):
+def send_email(subject: str, body: str) -> None:
     """通过 QQ 邮箱发送邮件"""
     if not (MAIL_USER and MAIL_PASS and MAIL_TO):
         logging.warning("邮件配置不完整，跳过发送")
@@ -298,7 +314,7 @@ def send_email(subject, body):
     except Exception as e:
         logging.error(f"邮件发送失败: {e}")
 
-def scrape():
+def scrape() -> None:
     logging.info("终极智能爬虫开始运行")
 
     # 创建数据目录
@@ -343,8 +359,7 @@ def scrape():
         # robots.txt 检查
         if not can_fetch(url):
             logging.info(f"robots.txt 禁止抓取: {url}")
-            # 我们仍然记录为已访问，避免重复检查
-            visited.add(norm_url)
+            visited.add(norm_url)  # 记录为已访问，避免重复检查
             continue
 
         logging.info(f"抓取 [{pages_crawled+1}/{MAX_PAGES_PER_RUN}]: {url}")
@@ -397,39 +412,50 @@ def scrape():
     save_set(VISITED_FILE, visited)
     save_list(PENDING_FILE, unique_pending)
 
-    # 生成运行报告（丰富版）
+    # 生成运行报告（清晰排版版）
     report_lines = []
+    report_lines.append("=" * 60)
     report_lines.append("终极智能爬虫运行报告")
+    report_lines.append("=" * 60)
     report_lines.append(f"运行时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     report_lines.append(f"本次抓取页面数：{pages_crawled}")
     report_lines.append(f"新发现链接数：{new_links_found}")
     report_lines.append(f"失败链接数：{len(failed_urls)}")
     report_lines.append(f"当前待抓取队列长度：{len(unique_pending)}")
     report_lines.append(f"累计已抓取页面：{len(visited)}")
-    report_lines.append("")
     report_lines.append("=" * 60)
     report_lines.append("本次抓取页面详情：")
+    report_lines.append("")
 
     for idx, data in enumerate(page_details, 1):
-        report_lines.append(f"\n--- 页面 {idx} ---")
+        report_lines.append("-" * 40)
+        report_lines.append(f"【页面 {idx}】")
         report_lines.append(f"标题：{data['title']}")
-        report_lines.append(f"URL：{data['url']}")
-        report_lines.append(f"描述：{data['meta_description']}")
-        
-        # 显示 Open Graph 关键信息
+        report_lines.append(f"链接：{data['url']}")
+
+        # 内容摘要
+        if data['main_text']:
+            summary = data['main_text'][:500] + ("..." if len(data['main_text']) > 500 else "")
+            report_lines.append(f"内容摘要：\n{summary}")
+        else:
+            report_lines.append("内容摘要：无")
+
+        # 元数据汇总
+        meta_lines = []
+        if data['meta_description']:
+            meta_lines.append(f"描述：{data['meta_description']}")
+
         if data['og']:
-            og_items = []
+            og_info = []
             if 'title' in data['og'] and data['og']['title'] != data['title']:
-                og_items.append(f"OG标题：{data['og']['title']}")
+                og_info.append(f"OG标题：{data['og']['title']}")
             if 'description' in data['og']:
-                og_items.append(f"OG描述：{data['og']['description']}")
+                og_info.append(f"OG描述：{data['og']['description']}")
             if 'image' in data['og']:
-                og_items.append(f"OG图片：{data['og']['image']}")
-            if og_items:
-                report_lines.append("社交元数据：")
-                report_lines.extend(og_items)
-        
-        # 显示结构化数据（如价格、评分）
+                og_info.append(f"OG图片：{data['og']['image']}")
+            if og_info:
+                meta_lines.append("社交元数据：" + " | ".join(og_info))
+
         if data['structured']:
             struct_items = []
             if 'name' in data['structured']:
@@ -444,12 +470,13 @@ def scrape():
             if 'review_count' in data['structured']:
                 struct_items.append(f"评论数：{data['structured']['review_count']}")
             if struct_items:
-                report_lines.append("结构化数据：")
-                report_lines.extend(struct_items)
-        
-        # 显示正文预览
-        report_lines.append(f"正文预览（提取方式：{data['extraction_method']}）：")
-        report_lines.append(data['main_text'])
+                meta_lines.append("结构化数据：" + " | ".join(struct_items))
+
+        if meta_lines:
+            report_lines.append("其他信息：")
+            for line in meta_lines:
+                report_lines.append(f"  {line}")
+        report_lines.append("")
 
     report = "\n".join(report_lines)
     logging.info(report)
@@ -461,5 +488,4 @@ def scrape():
         logging.info("本次无新内容，不发送邮件")
 
 if __name__ == "__main__":
-
     scrape()
