@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-终极智能爬虫 - 个人百度蜘蛛（优化版）
+终极智能爬虫 - 个人百度蜘蛛（HTML邮件美化版）
 功能：
 - 从种子网址开始，自动提取链接并扩散
 - 遵守 robots.txt
 - 限制域名范围
 - 智能提取正文、结构化数据、Open Graph 元数据
-- 通过邮件发送详细报告
+- 通过美观的 HTML 邮件发送详细报告（链接可点击）
 - 状态持久化，每次运行接着上次
 """
 
@@ -69,8 +69,6 @@ DATA_DIR: str = "data"
 LOG_LEVEL: int = logging.INFO
 # 邮件正文中每个页面的正文预览最大长度（字符数）
 PREVIEW_MAX_LENGTH: int = 2000
-# 结构化数据字段最大展示行数（暂未使用，但可扩展）
-MAX_STRUCTURED_ITEMS: int = 5
 # ==================== 邮件配置（从环境变量读取）====================
 MAIL_USER: Optional[str] = os.environ.get("MAIL_USER")
 MAIL_PASS: Optional[str] = os.environ.get("MAIL_PASS")
@@ -94,7 +92,6 @@ def get_robots_parser(domain: str) -> Optional[RobotFileParser]:
         robot_parsers[domain] = parser
     except Exception as e:
         logging.warning(f"读取 {domain}/robots.txt 失败: {e}")
-        parser = None
         robot_parsers[domain] = None
     return robot_parsers[domain]
 
@@ -146,7 +143,6 @@ def is_allowed_domain(url: str) -> bool:
 def normalize_url(url: str) -> str:
     """标准化 URL：去除 fragment，保留 scheme+netloc+path"""
     parsed = urlparse(url)
-    # 只保留 scheme, netloc, path
     return f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
 
 def extract_links(soup: BeautifulSoup, base_url: str) -> List[str]:
@@ -164,24 +160,20 @@ def extract_links(soup: BeautifulSoup, base_url: str) -> List[str]:
 
 def extract_structured_data(html: str, url: str) -> Dict[str, Any]:
     """
-    使用 extruct 提取 JSON-LD、微数据、RDFa 等结构化数据。
-    返回一个字典，包含提取到的关键信息（如名称、价格、评分等）。
+    使用 extruct 提取 JSON-LD、微数据等结构化数据。
+    返回包含关键信息的字典。
     """
     try:
         data = extruct.extract(html, url, uniform=True)
         summary: Dict[str, Any] = {}
-        
-        # 提取 JSON-LD
+
         if data.get('json-ld'):
             for item in data['json-ld']:
                 if isinstance(item, dict):
-                    # 尝试提取常见的产品/文章字段
                     if 'name' in item:
                         summary['name'] = item['name']
                     if 'description' in item and 'description' not in summary:
                         summary['description'] = item['description']
-                    
-                    # 处理 offers（可以是字典或列表）
                     if 'offers' in item:
                         offers = item['offers']
                         if isinstance(offers, dict):
@@ -200,15 +192,13 @@ def extract_structured_data(html: str, url: str) -> Dict[str, Any]:
                                 currency = first_offer.get('priceCurrency')
                                 if currency:
                                     summary['currency'] = currency
-                    
                     if 'aggregateRating' in item:
                         rating = item['aggregateRating'].get('ratingValue')
                         if rating:
                             summary['rating'] = rating
                     if 'reviewCount' in item:
                         summary['review_count'] = item['reviewCount']
-        
-        # 提取微数据
+
         if data.get('microdata'):
             for item in data['microdata']:
                 props = item.get('properties', {})
@@ -216,7 +206,7 @@ def extract_structured_data(html: str, url: str) -> Dict[str, Any]:
                     summary['price'] = props['price']
                 if 'name' in props and 'name' not in summary:
                     summary['name'] = props['name']
-        
+
         return summary
     except Exception as e:
         logging.warning(f"结构化数据提取失败: {e}")
@@ -235,12 +225,7 @@ def extract_opengraph(soup: BeautifulSoup) -> Dict[str, str]:
 
 def extract_page_data(html: str, url: str) -> Dict[str, Any]:
     """
-    综合提取页面的所有重要数据：
-    - 使用 trafilatura 提取主要文本
-    - 使用 readability 作为备选
-    - 提取 Open Graph 元数据
-    - 提取结构化数据
-    - 提取 meta description
+    综合提取页面的所有重要数据。
     """
     data: Dict[str, Any] = {
         'url': url,
@@ -251,24 +236,24 @@ def extract_page_data(html: str, url: str) -> Dict[str, Any]:
         'main_text': '',
         'extraction_method': 'none'
     }
-    
+
     soup = BeautifulSoup(html, 'lxml')
-    
+
     # 标题
     if soup.title and soup.title.string:
         data['title'] = soup.title.string.strip()
-    
+
     # Meta description
     meta_desc = soup.find('meta', attrs={'name': 'description'}) or soup.find('meta', attrs={'property': 'og:description'})
     if meta_desc and meta_desc.get('content'):
         data['meta_description'] = meta_desc['content'].strip()
-    
+
     # Open Graph
     data['og'] = extract_opengraph(soup)
-    
+
     # 结构化数据
     data['structured'] = extract_structured_data(html, url)
-    
+
     # 主要文本提取（优先用 trafilatura）
     extracted = trafilatura.extract(html, url=url, include_comments=False, include_tables=True, include_images=False)
     if extracted:
@@ -278,7 +263,6 @@ def extract_page_data(html: str, url: str) -> Dict[str, Any]:
         # 回退到 readability
         doc = Document(html)
         data['main_text'] = doc.summary()
-        # 清理 readability 返回的 HTML 标签，变成纯文本
         text_soup = BeautifulSoup(data['main_text'], 'lxml')
         data['main_text'] = text_soup.get_text(separator='\n', strip=True)[:PREVIEW_MAX_LENGTH]
         data['extraction_method'] = 'readability'
@@ -290,45 +274,317 @@ def extract_page_data(html: str, url: str) -> Dict[str, Any]:
             text = re.sub(r'\s+', ' ', text)
             data['main_text'] = text[:PREVIEW_MAX_LENGTH]
             data['extraction_method'] = 'fallback'
-    
+
     return data
 
-def send_email(subject: str, body: str) -> None:
-    """通过 QQ 邮箱发送邮件"""
+def send_html_email(subject: str, body_html: str) -> None:
+    """发送 HTML 格式邮件"""
     if not (MAIL_USER and MAIL_PASS and MAIL_TO):
         logging.warning("邮件配置不完整，跳过发送")
         return
 
-    msg = MIMEText(body, 'plain', 'utf-8')
+    msg = MIMEText(body_html, 'html', 'utf-8')
     msg['Subject'] = subject
     msg['From'] = MAIL_USER
     msg['To'] = MAIL_TO
 
     try:
-        # QQ 邮箱 SMTP 服务器
         server = smtplib.SMTP_SSL('smtp.qq.com', 465)
         server.login(MAIL_USER, MAIL_PASS)
         server.send_message(msg)
         server.quit()
-        logging.info("邮件发送成功")
+        logging.info("HTML邮件发送成功")
     except Exception as e:
         logging.error(f"邮件发送失败: {e}")
+
+def generate_html_report(
+    pages_crawled: int,
+    new_links_found: int,
+    failed_urls: List[str],
+    unique_pending: List[str],
+    visited_count: int,
+    page_details: List[Dict]
+) -> str:
+    """生成美观的 HTML 报告"""
+    html = []
+    html.append('''<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 25px;
+        }
+        .header {
+            text-align: center;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #4CAF50;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            color: #2c3e50;
+            margin: 0;
+            font-size: 28px;
+        }
+        .header p {
+            color: #7f8c8d;
+            margin: 5px 0 0;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin: 25px 0;
+        }
+        .stat-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .stat-card .value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .stat-card .label {
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+        .page-card {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            transition: transform 0.2s;
+        }
+        .page-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .page-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin: 0 0 10px 0;
+        }
+        .page-title a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        .page-title a:hover {
+            text-decoration: underline;
+        }
+        .page-url {
+            font-size: 14px;
+            color: #7f8c8d;
+            word-break: break-all;
+            margin-bottom: 15px;
+            background: #f8f9fa;
+            padding: 8px 12px;
+            border-radius: 5px;
+            border-left: 3px solid #3498db;
+        }
+        .page-url a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        .page-url a:hover {
+            text-decoration: underline;
+        }
+        .summary-box {
+            background: #f1f9fe;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            font-size: 15px;
+            color: #2c3e50;
+        }
+        .meta-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 15px 0;
+        }
+        .meta-tag {
+            background: #e9ecef;
+            color: #495057;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .meta-tag.blue {
+            background: #d4edda;
+            color: #155724;
+        }
+        .meta-tag.green {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        .meta-tag.orange {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .structured-data {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 15px;
+            border: 1px dashed #adb5bd;
+        }
+        .structured-data h4 {
+            margin: 0 0 8px 0;
+            font-size: 16px;
+            color: #2c3e50;
+        }
+        .structured-data pre {
+            margin: 0;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #2c3e50;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        hr {
+            border: 0;
+            border-top: 1px solid #e9ecef;
+            margin: 30px 0;
+        }
+        .footer {
+            text-align: center;
+            color: #95a5a6;
+            font-size: 13px;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e9ecef;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🕷️ 终极智能爬虫运行报告</h1>
+            <p>''' + datetime.now().strftime('%Y-%m-%d %H:%M:%S') + '''</p>
+        </div>
+''')
+
+    # 统计卡片
+    html.append('<div class="stats-grid">')
+    stats = [
+        ('📄 抓取页面', pages_crawled),
+        ('🔗 新发现链接', new_links_found),
+        ('❌ 失败链接', len(failed_urls)),
+        ('⏳ 待抓取队列', len(unique_pending)),
+        ('📚 累计已抓取', visited_count)
+    ]
+    for label, value in stats:
+        html.append(f'''
+        <div class="stat-card">
+            <div class="value">{value}</div>
+            <div class="label">{label}</div>
+        </div>
+        ''')
+    html.append('</div>')
+
+    if not page_details:
+        html.append('<p style="text-align:center;color:#7f8c8d;">本次运行未抓取到新页面。</p>')
+    else:
+        html.append(f'<h2 style="color:#2c3e50;">📌 本次抓取详情（共 {len(page_details)} 页）</h2>')
+
+        for idx, data in enumerate(page_details, 1):
+            html.append(f'<div class="page-card">')
+            html.append(f'<div class="page-title">📌 {idx}. {data["title"]}</div>')
+            html.append(f'<div class="page-url">🔗 <a href="{data["url"]}">{data["url"]}</a></div>')
+
+            # 内容摘要
+            if data['main_text']:
+                html.append(f'<div class="summary-box"><strong>📝 内容摘要：</strong><br>{data["main_text"]}</div>')
+            else:
+                html.append('<div class="summary-box"><strong>📝 内容摘要：</strong> 无</div>')
+
+            # 元数据标签
+            meta_tags = []
+            if data['meta_description']:
+                meta_tags.append(f'<span class="meta-tag blue">📄 描述：{data["meta_description"][:100]}…</span>')
+
+            if data['og']:
+                og_title = data['og'].get('title', '')
+                if og_title and og_title != data['title']:
+                    meta_tags.append(f'<span class="meta-tag green">🔗 OG标题：{og_title[:50]}…</span>')
+                og_desc = data['og'].get('description', '')
+                if og_desc:
+                    meta_tags.append(f'<span class="meta-tag green">📋 OG描述：{og_desc[:50]}…</span>')
+
+            if data['structured']:
+                struct = data['structured']
+                items = []
+                if 'name' in struct:
+                    items.append(f"产品名:{struct['name']}")
+                if 'price' in struct:
+                    price = struct['price']
+                    if 'currency' in struct:
+                        price += f" {struct['currency']}"
+                    items.append(f"💰 {price}")
+                if 'rating' in struct:
+                    items.append(f"⭐ {struct['rating']}")
+                if 'review_count' in struct:
+                    items.append(f"🗣️ {struct['review_count']}评论")
+                if items:
+                    meta_tags.append('<span class="meta-tag orange">📊 结构化数据：' + ' | '.join(items) + '</span>')
+
+            if meta_tags:
+                html.append('<div class="meta-tags">' + ''.join(meta_tags) + '</div>')
+
+            # 完整结构化数据显示（可选）
+            if data['structured'] and len(data['structured']) > 3:  # 如果结构化数据丰富，额外展示
+                html.append('<div class="structured-data">')
+                html.append('<h4>📋 详细结构化数据：</h4>')
+                html.append('<pre>' + str(data['structured']) + '</pre>')
+                html.append('</div>')
+
+            html.append('</div>')
+
+    html.append('''
+        <hr>
+        <div class="footer">
+            <p>本报告由终极智能爬虫自动生成 · 仅供个人学习研究</p>
+        </div>
+    </div>
+</body>
+</html>''')
+
+    return '\n'.join(html)
 
 def scrape() -> None:
     logging.info("终极智能爬虫开始运行")
 
-    # 创建数据目录
     os.makedirs(DATA_DIR, exist_ok=True)
 
-    # 加载状态
     visited = load_set(VISITED_FILE)
     pending = load_list(PENDING_FILE)
 
-    # 如果 pending 为空，从种子文件初始化
     if not pending and os.path.exists(SEEDS_FILE):
         with open(SEEDS_FILE, 'r', encoding='utf-8') as f:
             seeds = [line.strip() for line in f if line.strip()]
-        # 只保留允许域名的种子
         seeds = [s for s in seeds if is_allowed_domain(s)]
         pending = seeds
         logging.info(f"从种子文件加载了 {len(seeds)} 个起始网址")
@@ -340,26 +596,21 @@ def scrape() -> None:
     pages_crawled = 0
     new_links_found = 0
     failed_urls = []
-    new_pending = []          # 临时存放新发现的链接
-    page_details = []          # 存储本次抓取页面的详细数据
+    new_pending = []
+    page_details = []
 
     while pending and pages_crawled < MAX_PAGES_PER_RUN:
         url = pending.pop(0)
         norm_url = normalize_url(url)
 
-        # 已访问检查
         if norm_url in visited:
             continue
-
-        # 域名检查
         if not is_allowed_domain(url):
             logging.debug(f"跳过不允许的域名: {url}")
             continue
-
-        # robots.txt 检查
         if not can_fetch(url):
             logging.info(f"robots.txt 禁止抓取: {url}")
-            visited.add(norm_url)  # 记录为已访问，避免重复检查
+            visited.add(norm_url)
             continue
 
         logging.info(f"抓取 [{pages_crawled+1}/{MAX_PAGES_PER_RUN}]: {url}")
@@ -370,17 +621,14 @@ def scrape() -> None:
             resp.raise_for_status()
             html = resp.text
 
-            # 保存原始 HTML（可选）
             safe_fname = re.sub(r'[^\w\-_]', '_', url)[:150] + ".html"
             filepath = os.path.join(DATA_DIR, safe_fname)
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(html)
 
-            # 提取页面数据
             page_data = extract_page_data(html, url)
             page_details.append(page_data)
 
-            # 提取链接
             soup = BeautifulSoup(html, 'lxml')
             links = extract_links(soup, url)
             for link in links:
@@ -397,9 +645,7 @@ def scrape() -> None:
             logging.error(f"抓取失败 {url}: {e}")
             failed_urls.append(url)
 
-    # 合并剩余 pending 和新链接
     all_pending = pending + new_pending
-    # 简单去重（保持顺序）
     seen = set()
     unique_pending = []
     for u in all_pending:
@@ -408,82 +654,23 @@ def scrape() -> None:
             seen.add(nu)
             unique_pending.append(u)
 
-    # 保存状态
     save_set(VISITED_FILE, visited)
     save_list(PENDING_FILE, unique_pending)
 
-    # 生成运行报告（清晰排版版）
-    report_lines = []
-    report_lines.append("=" * 60)
-    report_lines.append("终极智能爬虫运行报告")
-    report_lines.append("=" * 60)
-    report_lines.append(f"运行时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    report_lines.append(f"本次抓取页面数：{pages_crawled}")
-    report_lines.append(f"新发现链接数：{new_links_found}")
-    report_lines.append(f"失败链接数：{len(failed_urls)}")
-    report_lines.append(f"当前待抓取队列长度：{len(unique_pending)}")
-    report_lines.append(f"累计已抓取页面：{len(visited)}")
-    report_lines.append("=" * 60)
-    report_lines.append("本次抓取页面详情：")
-    report_lines.append("")
+    # 生成 HTML 报告
+    html_report = generate_html_report(
+        pages_crawled=pages_crawled,
+        new_links_found=new_links_found,
+        failed_urls=failed_urls,
+        unique_pending=unique_pending,
+        visited_count=len(visited),
+        page_details=page_details
+    )
 
-    for idx, data in enumerate(page_details, 1):
-        report_lines.append("-" * 40)
-        report_lines.append(f"【页面 {idx}】")
-        report_lines.append(f"标题：{data['title']}")
-        report_lines.append(f"链接：{data['url']}")
+    logging.info("HTML报告生成完毕，长度：%d 字符", len(html_report))
 
-        # 内容摘要
-        if data['main_text']:
-            summary = data['main_text'][:500] + ("..." if len(data['main_text']) > 500 else "")
-            report_lines.append(f"内容摘要：\n{summary}")
-        else:
-            report_lines.append("内容摘要：无")
-
-        # 元数据汇总
-        meta_lines = []
-        if data['meta_description']:
-            meta_lines.append(f"描述：{data['meta_description']}")
-
-        if data['og']:
-            og_info = []
-            if 'title' in data['og'] and data['og']['title'] != data['title']:
-                og_info.append(f"OG标题：{data['og']['title']}")
-            if 'description' in data['og']:
-                og_info.append(f"OG描述：{data['og']['description']}")
-            if 'image' in data['og']:
-                og_info.append(f"OG图片：{data['og']['image']}")
-            if og_info:
-                meta_lines.append("社交元数据：" + " | ".join(og_info))
-
-        if data['structured']:
-            struct_items = []
-            if 'name' in data['structured']:
-                struct_items.append(f"产品名：{data['structured']['name']}")
-            if 'price' in data['structured']:
-                price_str = data['structured']['price']
-                if 'currency' in data['structured']:
-                    price_str += f" {data['structured']['currency']}"
-                struct_items.append(f"价格：{price_str}")
-            if 'rating' in data['structured']:
-                struct_items.append(f"评分：{data['structured']['rating']}")
-            if 'review_count' in data['structured']:
-                struct_items.append(f"评论数：{data['structured']['review_count']}")
-            if struct_items:
-                meta_lines.append("结构化数据：" + " | ".join(struct_items))
-
-        if meta_lines:
-            report_lines.append("其他信息：")
-            for line in meta_lines:
-                report_lines.append(f"  {line}")
-        report_lines.append("")
-
-    report = "\n".join(report_lines)
-    logging.info(report)
-
-    # 发送邮件
     if page_details:
-        send_email(f"终极爬虫简报 - {pages_crawled} 页", report)
+        send_html_email(f"终极爬虫简报 - {pages_crawled} 页", html_report)
     else:
         logging.info("本次无新内容，不发送邮件")
 
