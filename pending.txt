@@ -1,18 +1,3 @@
-https://github.com/trending/ignore-list
-https://github.com/trending/igor-pro
-https://github.com/trending/imagej-macro
-https://github.com/trending/imba
-https://github.com/trending/inform-7
-https://github.com/trending/ini
-https://github.com/trending/ink
-https://github.com/trending/inno-setup
-https://github.com/trending/io
-https://github.com/trending/ioke
-https://github.com/trending/irc-log
-https://github.com/trending/isabelle
-https://github.com/trending/isabelle-root
-https://github.com/trending/ispc
-https://github.com/trending/j
 https://github.com/trending/jac
 https://github.com/trending/jai
 https://github.com/trending/janet
@@ -5675,3 +5660,8 @@ https://github.com/gustavoguanabara
 https://github.com/eteot
 https://github.com/guanabara-eteot
 https://github.com/gafanhotos
+https://github.com/ManlyMarco/SVS-HF_Patch
+https://github.com/ManlyMarco/SVS-HF_Patch/stargazers
+https://github.com/ManlyMarco/SVS-HF_Patch/forks
+https://github.com/ManlyMarco
+https://github.com/Seiun-Sky
