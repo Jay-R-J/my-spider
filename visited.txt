@@ -3,7 +3,16 @@ https://baike.baidu.com/
 https://docs.github.com
 https://docs.github.com/search-github/github-code-search/understanding-github-code-search-syntax
 https://github.com/
+https://github.com/ChromeDevTools/chrome-devtools-mcp
+https://github.com/ChromeDevTools/chrome-devtools-mcp/forks
+https://github.com/ChromeDevTools/chrome-devtools-mcp/stargazers
+https://github.com/Pedrovaleriolopez
+https://github.com/SynkraAI/aios-core
+https://github.com/SynkraAI/aios-core/forks
+https://github.com/SynkraAI/aios-core/stargazers
 https://github.com/accelerator
+https://github.com/apps/github-actions
+https://github.com/claude
 https://github.com/collections
 https://github.com/customer-stories
 https://github.com/enterprise
@@ -21,6 +30,7 @@ https://github.com/features/models
 https://github.com/features/spark
 https://github.com/login
 https://github.com/mcp
+https://github.com/oalanicolas
 https://github.com/orgs/community/discussions
 https://github.com/partners
 https://github.com/premium-support
@@ -31,6 +41,7 @@ https://github.com/resources/whitepapers
 https://github.com/security/advanced-security
 https://github.com/security/advanced-security/code-security
 https://github.com/security/advanced-security/secret-protection
+https://github.com/semantic-release-bot
 https://github.com/signup
 https://github.com/solutions
 https://github.com/solutions/executive-insights
@@ -849,6 +860,10 @@ https://github.com/trending/zap
 https://github.com/trending/zeek
 https://github.com/trending/zenscript
 https://github.com/trending/zephir
+https://github.com/trending/zig
+https://github.com/trending/zil
+https://github.com/trending/zimpl
+https://github.com/trending/zmodel
 https://github.com/trust-center
 https://github.com/why-github
 https://juejin.cn/
