@@ -7,6 +7,7 @@ https://github.com/ChawlaAvi
 https://github.com/ChromeDevTools/chrome-devtools-mcp
 https://github.com/ChromeDevTools/chrome-devtools-mcp/forks
 https://github.com/ChromeDevTools/chrome-devtools-mcp/stargazers
+https://github.com/HandsOnLLM/Hands-On-Large-Language-Models
 https://github.com/Lightning00Blade
 https://github.com/OrKoN
 https://github.com/Pedrovaleriolopez
@@ -20,6 +21,10 @@ https://github.com/accelerator
 https://github.com/apps/dependabot
 https://github.com/apps/github-actions
 https://github.com/browser-automation-bot
+https://github.com/cheahjs
+https://github.com/cheahjs/free-llm-api-resources
+https://github.com/cheahjs/free-llm-api-resources/forks
+https://github.com/cheahjs/free-llm-api-resources/stargazers
 https://github.com/claude
 https://github.com/collections
 https://github.com/customer-stories
@@ -27,6 +32,7 @@ https://github.com/danielmiessler
 https://github.com/danielmiessler/Personal_AI_Infrastructure
 https://github.com/danielmiessler/Personal_AI_Infrastructure/forks
 https://github.com/danielmiessler/Personal_AI_Infrastructure/stargazers
+https://github.com/dawsenhwang
 https://github.com/dfedin
 https://github.com/enterprise
 https://github.com/enterprise/startups
@@ -41,14 +47,21 @@ https://github.com/features/copilot/copilot-business
 https://github.com/features/issues
 https://github.com/features/models
 https://github.com/features/spark
+https://github.com/google-deepmind/superhuman
+https://github.com/google-deepmind/superhuman/forks
+https://github.com/google-deepmind/superhuman/stargazers
+https://github.com/justmarkham
+https://github.com/k-bose
 https://github.com/ksylvan
 https://github.com/levlam
+https://github.com/lmthang
 https://github.com/login
 https://github.com/m4nt0de4
 https://github.com/mcp
 https://github.com/mvoehringer
 https://github.com/namanvirk18
 https://github.com/nikhil-1e9
+https://github.com/nurijunsu
 https://github.com/oalanicolas
 https://github.com/orgs/community/discussions
 https://github.com/partners
@@ -88,6 +101,7 @@ https://github.com/sponsors/patchy631
 https://github.com/stek29
 https://github.com/szuend
 https://github.com/team
+https://github.com/themacexpert
 https://github.com/topics
 https://github.com/trending
 https://github.com/trending/1c-enterprise
@@ -896,6 +910,7 @@ https://github.com/trending/zmodel
 https://github.com/trust-center
 https://github.com/vysheng
 https://github.com/why-github
+https://github.com/ychervonyi
 https://juejin.cn/
 https://maintainers.github.com
 https://securitylab.github.com
